@@ -1690,10 +1690,15 @@ class CSVParser():
                             continue
                         log.success(f'Successfully added asset(s) info to finding!')
 
-    def save_data_as_ptrac(self, file_name=None):
+    def save_data_as_ptrac(self, folder_path:str="exported-ptracs", file_name:str|None=None) -> None:
         """
         Creates and adds all relevant data to generate a ptrac file for each report found while parsing
-        """
+
+        :param folder_path: folder path of where to save the PTRAC, defaults to "exported-ptracs"
+        :type folder_path: str, optional
+        :param file_name: file name without extension, defaults to None
+        :type file_name: str | None, optional - if not set, a file name will be generated based on the parsed client and report names
+        """        
         ptrac_template = {
             "report_info": {
                 "doc_type": "report"
@@ -1710,12 +1715,6 @@ class CSVParser():
                 "tenant_id": 0
             }
         }
-
-        folder_path = "exported-ptracs"
-        try:
-            os.mkdir(folder_path)
-        except FileExistsError as e:
-            log.debug(f'Could not create directory {folder_path}, already exists')
 
         # creates and export a ptrac for each report parsed
         log.info(f'---Creating ptrac---')
@@ -1885,9 +1884,18 @@ class CSVParser():
 
                 
                 # save report as ptrac
+                try:
+                    os.mkdir(folder_path)
+                except FileExistsError as e:
+                    log.debug(f'Could not create directory {folder_path}, already exists')
+
                 if file_name == None:
-                    file_name = f'{utils.sanitize_file_name(client["name"])}_{utils.sanitize_file_name(report["name"])}_{self.parser_time}.ptrac'
-                file_path = f'{folder_path}/{file_name}'
+                    file_name = f'{utils.sanitize_file_name(client["name"])}_{utils.sanitize_file_name(report["name"])}_{self.parser_time}'
+
+                existing_files = [os.path.splitext(file)[0] for file in os.listdir(folder_path)]
+                export_file_name = utils.increment_file_name(file_name, existing_files)
+                
+                file_path = f'{folder_path}/{export_file_name}.ptrac'
                 with open(f'{file_path}', 'w') as file:
                     json.dump(ptrac, file)
-                    log.success(f'Saved new PTRAC \'{file_name}\'')
+                    log.success(f'Saved new PTRAC \'{export_file_name}.ptrac\'')

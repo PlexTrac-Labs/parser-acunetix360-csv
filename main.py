@@ -2,6 +2,7 @@ from operator import itemgetter
 from typing import Union, List
 import yaml
 import json
+import os
 
 import utils.log_handler as logger
 log = logger.log
@@ -10,6 +11,7 @@ from utils.auth_handler import Auth
 from csv_parser import CSVParser
 import utils.input_utils as input
 from utils.input_utils import LoadedCSVData, LoadedJSONData
+import utils.general_utils as utils
 import api
 
 
@@ -360,6 +362,12 @@ if __name__ == '__main__':
     with open("config.yaml", 'r') as f:
         args = yaml.safe_load(f)
 
+    export_folder_path = "exported-ptracs"
+    try:
+        os.mkdir(export_folder_path)
+    except FileExistsError as e:
+        log.debug(f'Could not create directory {export_folder_path}, already exists')
+
     auth = Auth(args)
     auth.handle_authentication()
 
@@ -455,5 +463,7 @@ if __name__ == '__main__':
         log.info(f'Import Complete. Additional logs were added to {log.LOGS_FILE_PATH}')
 
     if input.continue_anyways(f'IMPORTANT: Data will be saved to Ptrac(s).\nYou can save each parsed report as a Ptrac. You cannot import client data from a Ptrac.\nWould you like to create and save a Ptrac for {len(parser.reports)} report(s).'):
-        parser.save_data_as_ptrac()
+        parser.save_data_as_ptrac(folder_path=export_folder_path)
+        # time.sleep(1) # required to have a minimum 1 sec delay since unique file names COULD be determined by timestamp
+
         log.info(f'Ptrac(s) creation complete. File(s) can be found in \'exported-ptracs\' folder. Additional logs were added to {log.LOGS_FILE_PATH}')
