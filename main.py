@@ -18,6 +18,18 @@ import api
 # otherwise can have static mapping defined in script, but only works for a single type of data file
 predefined_csv_headers_mapping = False
 
+# TEMPLATE checklist
+# rewrite
+# - load_data_file
+# - verify_data_file
+# - create_temp_data_csv
+
+# confirm
+# - load_parser_mappings_from_data_file
+
+# write
+# - CSVParser > csv_headers_mapping_template
+
 
 def handle_load_api_version(api_version:str, parser:CSVParser) -> None:
     """
