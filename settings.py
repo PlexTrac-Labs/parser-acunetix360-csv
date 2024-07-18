@@ -16,12 +16,10 @@ retries = 0
 
 # description of script that will be print line by line when the script is run
 script_info = ["====================================================================",
-               "= General CSV Import Script                                        =",
+               "= Acunetic360 - CSV File Parser                                    =",
                "=------------------------------------------------------------------=",
-               "= Takes a CSV with rows representing client, report, finding and   =",
-               "= asset data and a CSV with how to map each column to a            =",
-               "= location in Plextrac.                                            =",
-               "= Parses the CSV and gives the user the option to import data      =",
-               "= directly to Plextrac or generate a Ptrac for each report parsed. =",
+               "= Script to convert a CSV file from a Acunetix360 export into a    =",
+               "= .ptrac file that can be imported into Plextrac.                  =",
+               "=                                                                  =",
                "===================================================================="
             ]

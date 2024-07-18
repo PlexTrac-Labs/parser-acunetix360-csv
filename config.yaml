@@ -5,8 +5,7 @@ password:
 
 api_version: 
 
-csv_headers_file_path: header_mapping.csv
-csv_data_file_path: 
+acunetic360_data_folder_path: files_to_process
 
 # name of a report template in the Plextrac instance will be added to all reports
 report_template_name: 

@@ -1,7 +1,10 @@
+# parser-acunetic360-csv
+Custom stand alone parser for CSV files exported from Acunetix360. This script will bulk convert the CSV files from Acunetix360 into PTRAC files that can be manually imported into Plextrac.
+
 # Requirements
 - [Python 3+](https://www.python.org/downloads/)
 - [pip](https://pip.pypa.io/en/stable/installation/)
-- [pipenv](https://pipenv.pypa.io/en/latest/install/)
+- [pipenv](https://pipenv.pypa.io/en/latest/)
 
 # Installing
 After installing Python, pip, and pipenv, run the following commands to setup the Python virtual environment.
@@ -14,19 +17,11 @@ pipenv install
 # Setup
 After setting up the Python environment, you will need to setup a few things before you can run the script.
 
-## CSV with Data to Import
-In the `config.yaml` file you should add the file path to the CSV with data you're trying to import.
+## CSV Data to Import
+In the `config.yaml` file, the `acunetic360_data_folder_path` should point to the folder where you place the Acunetix360 CSV files you're trying to convert to PTRAC files. The default directory is 'file_to_process'. You can either create this folder in the root directory where you cloned the project, or change the directory path in the config to where you want to pull files from.
 
-## Header Mapping CSV
-To import a CSV with data, you must create a mapping to tell the script where the data for each column should go in Plextrac.
-1. Make a copy of the csv file with the data you want to import.
-2. Rename the copy to `header_mapping.csv`. If you choose a different file name you will need to update the `csv_headers_file_path` value in the `config.yaml` file.
-3. Open the `header_mapping.csv` and delete all rows except the header row.
-4. In the second row, for each column you want to import, add a location key. 
-
-See [Location Key List.ods](https://github.com/pgreen-ptrac/general-csv-import/files/10413417/Location.Key.List.ods) for list of available keys and descriptions.
-
-5. Move this file to the main directory where you cloned this repo. If you place it in a different directory you will need to update the `csv_headers_file_path` value in the `config.yaml` file.
+## API Version
+The Api Version of the Plextrac instance you plan to import .ptrac files to is required for successful .ptrac generation. The API Version can be found at the bottom right of the Account Admin page in Plextrac. This value can be entered in the `config.yaml` file after `api_version`.
 
 ## Credentials
 In the `config.yaml` file you should add the full URL to your instance of Plextrac.
@@ -37,9 +32,6 @@ The config also can store your username and password. Plextrac authentication la
 In the `config.yaml` file you can add the name of an existing Report Template and Findings Layout. If these values are present, it will verify the template exists and link it to all reports created. Upon navigating to the Report Details tab of a report, you will see the respective dropdown pre-populated.
 
 In the platform there can be duplicate names for report templates and findings layouts. For this script to know which template you want to add, there can only be a single template with the same name you added to the config file.
-
-## API Version
-The Api Version of the Plextrac instance you plan to import .ptrac files to is required for successful .ptrac generation. The API Version can be found at the bottom right of the Account Admin page in Plextrac. This value can be entered in the `config.yaml` file.
 
 # Usage
 After setting everything up you can run the script with the following command. You should be in the folder where you cloned the repo when running the following.
@@ -54,25 +46,26 @@ The following values can either be added to the `config.yaml` file or entered wh
 - Username
 - Password
 - MFA Token (if enabled)
-- File path to CSV containing data to import
-- File path to CSV containing header mappings to Plextrac location keys
 - API version
+- Folder path to directory containing Acunetix360 CSV file(s) to import
 
 ## Script Execution Flow
 When the script starts it will load in config values and try to:
 - Authenticates user
-- Read and verify CSV data
-- Create a log file
+- Read files in the specified directory
 
-Once this setup is complete it will start looping through each row in CSV and try to:
-- Determine which client the row belongs to based on the client_name location key mapping
-- Add all client information if creating a new client
-- Determine which report the row belongs to based on the report_name location key mapping.
-- Add all report information if creating a new report
-- Create a new finding and add all finding information
-- If any asset location keys were mapped, create a new asset and add all asset information
+For each file found in the directory it will:
+- Read and verify CSV file data is from a valid Acunetix360 export
+- Create a temporary data structure for easier data parsing
+- It will then start looping through each row in the newly created temporary data structure and parse the row into the finding structure Plextrac can import
 
-After parsing the CSV, the user can choose to import client, report, finding, and asset data directly into Plextrac via the API AND/OR save .ptrac files for each report that was parsed from the CSV. Importing data via the API allows you to create new clients and add any parsed client information, however, this requires multiple API calls per object and may take some time depending on CSV size. Generated .ptrac files can be imported into a client in Plextrac to create a new report that includes all report information that was parsed from the CSV. You can also import a .ptrac into an existing report in Plextrac to import the findings it contains.
+After parsing the CSV, the script will save a .ptrac file that was parsed from the CSV.
+
+Generated .ptrac files can be imported into an existing report in Plextrac, to import the findings it contains.
+- Go to the Findings tab of a report
+- Click 'Add findings' > 'File Imports'
+- Select 'PlexTrac' from 'Import source' dropdown
+- Select PTRAC file to import
 
 ## Logging
 The script is run in INFO mode so you can see progress on the command line. A log file will be created when the script is run and saved to the root directory where the script is. You can search this file for "WARNING" or "ERROR" to see if something did not get parsed or imported correctly. Any critical level issue will stop the script immediately.

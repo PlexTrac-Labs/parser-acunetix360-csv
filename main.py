@@ -1,8 +1,8 @@
 from operator import itemgetter
 from typing import Union, List
 import yaml
-import json
 import os
+import csv
 
 import utils.log_handler as logger
 log = logger.log
@@ -18,7 +18,7 @@ import api
 # determines type of script execution
 # can either take in a dynamic header CSV file that determines data mapping outside script
 # otherwise can have static mapping defined in script, but only works for a single type of data file
-predefined_csv_headers_mapping = False
+predefined_csv_headers_mapping = True
 
 # TEMPLATE checklist
 # rewrite
@@ -50,45 +50,9 @@ def handle_load_api_version(api_version:str, parser:CSVParser) -> None:
     else:
         if input.retry(f'The entered value {api_version} was not a valid version'):
             return handle_load_api_version("", parser)
-    
-
-def load_header_file(headers_file_path:str = "") -> LoadedCSVData:
-    """
-    Load CSV file containing header mapping to use in the script.
-    
-    Only called when `predefined_csv_headers_mapping` is False and the script will determine data mapping from additional CSV file
-    
-    TEMPLATE
-    When using this script as a base template, not required to change since headers will always be defined in a CSV
-
-    :param headers_file_path: filepath to file containing header mapping, defaults to ""
-    :type headers_file_path: str, optional - will prompt user if filepath is not supplied
-    :return: raw CSV data loaded from header file
-    :rtype: LoadedCSVData
-    """
-    return input.load_csv_data("Enter file path to the CSV mapping headers to Plextrac data types", csv_file_path=headers_file_path)
 
 
-def verify_header_file(loaded_file_data:LoadedCSVData, csv_parser:CSVParser) -> bool:
-    """
-    Checks that the loaded header file is valid for the script
-
-    TEMPLATE
-    When using this script as a base template, can add custom validation to make sure the header file is valid
-
-    :param loaded_file_data: LoadedCSVData object of returned loaded data from `load_header_file()`
-    :type loaded_file_data: LoadedCSVData
-    :param csv_parser: instance of CSVParser - used in cases where there is some validation to be done checking
-    against pre-populated data in the `csv_headers_mapping_template` dict in the CSVParser
-    :type csv_parser: CSVParser
-    :return: whether the file is valid
-    :rtype: bool
-    """
-    # custom validation rules
-    return True
-
-
-def load_data_file(data_file_path:str = "") -> LoadedCSVData:
+def load_data_file(data_file_path:str = "") -> LoadedCSVData|None:
     """
     Loads the file containing data to be imported in the script
 
@@ -100,10 +64,40 @@ def load_data_file(data_file_path:str = "") -> LoadedCSVData:
     :return: raw data loaded from file
     :rtype: LoadedCSVData if CSV, LoadedJSONData if Json, custom object if another filetype
     """
-    return input.load_csv_data("Enter file path to CSV data to import", csv_file_path=data_file_path)
+    # return input.load_csv_data("Enter file path to Acunetix360 CSV data to import", csv_file_path=data_file_path)
 
-    # # custom data file loading and return example
-    # return input.load_json_data("Enter file path to custom scan JSON file to import", json_file_path=data_file_path)
+    if data_file_path == "":
+        log.exception(f'Cannot load file with empty file path')
+        return None
+
+    if not os.path.exists(data_file_path):
+        log.exception(f'Specified CSV file at \'{data_file_path}\' does not exist')
+        return None
+
+    try:
+        with open(data_file_path, 'r', newline='', encoding='utf-8-sig') as f:
+            reader = csv.reader(f)
+
+            csv_complete = []
+            for row in reader:
+                csv_complete.append(row)
+            csv_headers = csv_complete[0]
+
+            # depending on encoding, empty cells at the end of a row might be counted as empty strings "" or not added
+            # (i.e. each row of the CSV might be a different length array)
+            # the following processing makes sure each row of the CSV is the same length
+            for row in csv_complete[1:]:
+                if len(row) < len(csv_headers):
+                    for i in range(len(csv_headers) - len(row)):
+                        row.append("")
+
+            csv_data = csv_complete[1:]
+
+            return LoadedCSVData(file_path=data_file_path, csv=csv_complete, headers=csv_headers, data=csv_data)
+
+    except Exception as e:
+        log.exception(f'Error loading file: {e}')
+        return None
 
 
 def verify_data_file(loaded_file_data:LoadedCSVData, csv_parser:CSVParser) -> bool:
@@ -135,52 +129,6 @@ def verify_data_file(loaded_file_data:LoadedCSVData, csv_parser:CSVParser) -> bo
         return False
     
     return True
-
-
-def load_parser_mappings_from_header_file(csv:LoadedCSVData, parser:CSVParser) -> None:
-    """
-    There are 2 cases of loading mapping data in CSVParser based on `predefined_csv_headers_mapping`
-    1) `csv_headers_mapping_template` dict in the CSVParser is empty
-    2) `csv_headers_mapping_template` dict in the CSVParser is pre-populated and only needs to have indexes matched
-
-    Function for case 1:
-    Data mapping will be parsed from header CSV. For each mapping a new object will be created in `csv_headers_mapping_template`
-
-    :param csv: 2 row CSV with headers on row 1 and mapping keys on row 2 - mapping keys can be found in 'Location Key List.ods'
-    :type csv: LoadedCSVData
-    :param parser: instance of CSVParser that data mapping will be loaded into
-    :type parser: CSVParser
-    """
-    csv_headers_mapping = {}
-
-    for index, header in enumerate(csv.headers):
-        mapping_key = csv.data[0][index]
-        if mapping_key in parser.get_data_mapping_ids():
-            csv_headers_mapping[header] = {
-                "header": header,
-                "mapping_key": mapping_key,
-                "col_index": index
-            }
-            continue
-        
-        if mapping_key == "":
-            csv_headers_mapping[header] = {
-                "header": header,
-                "mapping_key": "no_mapping",
-                "col_index": index
-            }
-        else:
-            if input.continue_anyways( f'ERR: Key <{mapping_key}> selected for header <{header}> is not an valid key'):
-                csv_headers_mapping[header] = {
-                    "header": header,
-                    "mapping_key": "no_mapping",
-                    "col_index": index
-                }
-            else:
-                exit()
-
-    parser.csv_headers_mapping = csv_headers_mapping
-    log.success(f'Loaded CSV headers mapping')
     
     
 def load_parser_mappings_from_data_file(csv:List[list], parser:CSVParser) -> bool:
@@ -203,8 +151,6 @@ def load_parser_mappings_from_data_file(csv:List[list], parser:CSVParser) -> boo
     :return: did the function update `predefined_csv_headers_mapping` objects - will still return True if some keys were invalid
     :rtype: bool
     """
-    # CUSTOM updating CSVParser > csv_headers_mapping dict based on custom generated temp CSV file
-    # setup JSON finding keys/headers into CSVParser > csv_headers_mapping dict
     headers = csv[0]
 
     for index, header in enumerate(headers):
@@ -221,7 +167,7 @@ def load_parser_mappings_from_data_file(csv:List[list], parser:CSVParser) -> boo
     return True
 
 
-def create_temp_data_csv(loaded_file_data:LoadedJSONData, parser:CSVParser) -> List[list]:
+def create_temp_data_csv(loaded_file_data:LoadedCSVData, parser:CSVParser) -> List[list]:
     """
     To be able to handle non CSV data files, this function converts the inputted data file into
     a temp CSV that can be handled by CSVParser.
@@ -231,44 +177,41 @@ def create_temp_data_csv(loaded_file_data:LoadedJSONData, parser:CSVParser) -> L
     list from the data file the script needs to parse.
 
     :param loaded_file_data: object of returned loaded data from `load_data_file()`
-    :type loaded_file_data: LoadedCSVData if CSV, LoadedJSONData if Json, custom object if another filetype
+    :type loaded_file_data: LoadedCSVData
     :param parser: instance of CSVParser that data will be loaded into
     :type parser: CSVParser
     :return: temp generated CSV
     :rtype: List[list]
     """
+    # turning the Acunetix360 CSV into a different CSV to handle certain data changes
     temp_csv = []
 
     # determine temp CSV headers - client, report, finding, and asset headers
     headers = parser.get_csv_headers()
     temp_csv.append(headers)
-
-    # get client info
-    client_name = ""
-
-    # get report info
-    report_name = ""
     
     # get finding info
-    for finding in loaded_file_data:
+    for finding in loaded_file_data.data:
         # seed row with number of possible columns determined from number of headers
         row = []
         for i in range(len(headers)):
             row.append("")
 
         # parse finding fields from data file
-        for label, value in finding:
-            index = headers.index(label) if label in headers else None
-            if index != None:    
-                row[index] = value
+        for index, value in enumerate(finding):
+            # severity
+            if index == 1 and value == "BestPractice":
+                row[index] = "Low"
+                continue
+            if index == 1 and value == "Information":
+                row[index] = "Low"
+                continue
+            # status
+            if index == 9:
+                row[index] = "Open"
+                continue
 
-        # add client and report info
-        client_name_index = headers.index("Client Name") if "Client Name" in headers else None
-        if client_name_index != None:
-            row[client_name_index] = client_name
-        report_name_index = headers.index("Report Name") if "Report Name" in headers else None
-        if report_name_index != None:
-            row[report_name_index] = report_name
+            row[index] = value
 
         # add parsed list of fields to CSV
         temp_csv.append(row)
@@ -362,7 +305,7 @@ if __name__ == '__main__':
     with open("config.yaml", 'r') as f:
         args = yaml.safe_load(f)
 
-    export_folder_path = "exported-ptracs"
+    export_folder_path = "exported_ptracs"
     try:
         os.mkdir(export_folder_path)
     except FileExistsError as e:
@@ -371,99 +314,100 @@ if __name__ == '__main__':
     auth = Auth(args)
     auth.handle_authentication()
 
-    # get header file_path
-    csv_headers_file_path = ""
-    if args.get('csv_headers_file_path') != None and args.get('csv_headers_file_path') != "":
-        csv_headers_file_path = args.get('csv_headers_file_path')
-        log.info(f'Using csv header file path \'{csv_headers_file_path}\' from config...')
-
-    # get data file path
-    csv_data_file_path = ""
-    if args.get('csv_data_file_path') != None and args.get('csv_data_file_path') != "":
-        csv_data_file_path = args.get('csv_data_file_path')
-        log.info(f'Using csv data file path \'{csv_data_file_path}\' from config...')
-
-    # create parser instance
-    parser = CSVParser()
-    log.info(f'---Starting data loading---')
+    # get API version from config
     api_version = ""
     if args.get('api_version') != None and args.get('api_version') != "":
         api_version = str(args.get('api_version'))
         log.info(f'Set API Version to \'{api_version}\' from config...')
-    handle_load_api_version(api_version, parser)
+    # get data folder path
+    acunetic360_data_folder_path = ""
+    if args.get('acunetic360_data_folder_path') != None and args.get('acunetic360_data_folder_path') != "":
+        acunetic360_data_folder_path = args.get('acunetic360_data_folder_path')
+        log.info(f'Using csv data file path \'{acunetic360_data_folder_path}\' from config...')
 
-    # switch 1: header file
-    if not predefined_csv_headers_mapping:
-        log.info(f'Running script with additional CSV Headers file...')
-
-        # load header file
-        loaded_file = load_header_file(csv_headers_file_path)
-
-        # verify header file
-        if not verify_header_file(loaded_file, parser):
+    # load all file from directory
+    file_list = []
+    if os.path.exists(acunetic360_data_folder_path) and os.path.isdir(acunetic360_data_folder_path):
+        files = os.listdir(acunetic360_data_folder_path)
+        file_list = [file for file in files if os.path.isfile(os.path.join(acunetic360_data_folder_path, file))]
+        if len(file_list) > 0:
+            log.success(f'Found {len(file_list)} file(s) to process')
+        else:
+            log.critical(f'Could not find any files in \'{acunetic360_data_folder_path}\'. Exiting...')
             exit()
-
-        # load headers into parser
-        load_parser_mappings_from_header_file(loaded_file, parser)
-    
-        # load data file
-        loaded_file = load_data_file(csv_data_file_path)
-
-        # verify data file
-        if not verify_data_file(loaded_file, parser):
-            exit()
-
-        # load data into parser instance
-        load_data_into_parser(loaded_file.csv, parser)
-
-    # switch 2: no header file - mapping already in parser, just need to find columns
-    if predefined_csv_headers_mapping:
-        log.info(f'Running script for specific file type (data mapping defined in script)...')
-
-        # load file
-        loaded_file = load_data_file(csv_data_file_path)
-
-        # verify file
-        if not verify_data_file(loaded_file, parser):
-            exit()
-
-        # create temp csv data file
-        temp_csv = create_temp_data_csv(loaded_file, parser)
-
-        # load temp CSV file headers into parser
-        load_parser_mappings_from_data_file(temp_csv, parser)
-    
-        # load temp CSV file data into parser
-        load_data_into_parser(temp_csv, parser)
-
-    # handle report templates
-    report_template_name = ""
-    if args.get('report_template_name') != None and args.get('report_template_name') != "":
-        report_template_name = args.get('report_template_name')
-        log.info(f'Using report template \'{report_template_name}\' from config...')
-        handle_add_report_template_name(report_template_name, parser)
-
-    # handle finding layouts
-    findings_layout_name = ""
-    if args.get('findings_layout_name') != None and args.get('findings_layout_name') != "":
-        findings_layout_name = args.get('findings_layout_name')
-        log.info(f'Using findings layout \'{findings_layout_name}\' from config...')
-        handle_add_findings_template_name(findings_layout_name, parser)
-
-    # parser data
-    if not parser.parse_data():
+    else:
+        log.critical(f'Could not find directory \'{acunetic360_data_folder_path}\'. Exiting...')
         exit()
 
-    # print result
-    parser.display_parser_results()
+    failed_files = []
+    for file_name in file_list:
+        # create parser instance
+        log.info(f'Processing file \'{file_name}\'...')
+        file_path = f'{acunetic360_data_folder_path}/{file_name}'
+        parser = CSVParser()
+        handle_load_api_version(api_version, parser)
+    
+        # switch 2: no header file - mapping already in parser, just need to find columns
+        if predefined_csv_headers_mapping:
+            log.info(f'Running script for Acunetix360 CSV (data mapping defined in script)...')
 
-    # save file
-    if input.continue_anyways(f'IMPORTANT: Data will be imported into Plextrac.\nPlease view the log file generated from parsing to see if there were any errors.\nIf the data was not parsed correctly, please exit the script, fix the data, and re-run.\nThis will import data into {len(parser.clients)} client(s). The more clients you have the harder it will be to undo this import.'):
-        parser.import_data(auth)
-        log.info(f'Import Complete. Additional logs were added to {log.LOGS_FILE_PATH}')
+            # load file
+            loaded_file = load_data_file(file_path)
+            if loaded_file == None:
+                log.exception(f'Could not load file \'{file_path}\'. Skipping...')
+                failed_files.append(file_name)
+                continue
 
-    if input.continue_anyways(f'IMPORTANT: Data will be saved to Ptrac(s).\nYou can save each parsed report as a Ptrac. You cannot import client data from a Ptrac.\nWould you like to create and save a Ptrac for {len(parser.reports)} report(s).'):
-        parser.save_data_as_ptrac(folder_path=export_folder_path)
-        # time.sleep(1) # required to have a minimum 1 sec delay since unique file names COULD be determined by timestamp
+            # verify file
+            if not verify_data_file(loaded_file, parser):
+                log.exception(f'\'{file_name}\' doesn\'t appear to be a Acunetix360 CSV file. This script can only parse Acunetix360 CSV files. Skipping...')
+                failed_files.append(file_name)
+                continue
 
-        log.info(f'Ptrac(s) creation complete. File(s) can be found in \'exported-ptracs\' folder. Additional logs were added to {log.LOGS_FILE_PATH}')
+            # create temp csv data file
+            temp_csv = create_temp_data_csv(loaded_file, parser)
+
+            # load temp CSV file headers into parser
+            load_parser_mappings_from_data_file(temp_csv, parser)
+
+            # load temp CSV file data into parser
+            load_data_into_parser(temp_csv, parser)
+
+        # handle report templates
+        report_template_name = ""
+        if args.get('report_template_name') != None and args.get('report_template_name') != "":
+            report_template_name = args.get('report_template_name')
+            log.info(f'Using report template \'{report_template_name}\' from config...')
+            handle_add_report_template_name(report_template_name, parser)
+
+        # handle finding layouts
+        findings_layout_name = ""
+        if args.get('findings_layout_name') != None and args.get('findings_layout_name') != "":
+            findings_layout_name = args.get('findings_layout_name')
+            log.info(f'Using findings layout \'{findings_layout_name}\' from config...')
+            handle_add_findings_template_name(findings_layout_name, parser)
+
+        # parser data
+        if not parser.parse_data():
+            log.exception(f'Ran into error and cannot parse data. Skipping...')
+            failed_files.append(file_name)
+            continue
+
+        # print result
+        parser.display_parser_results()
+
+        # save file
+        existing_files = [os.path.splitext(file)[0] for file in os.listdir(export_folder_path)]
+
+        base_name = os.path.basename(loaded_file.file_path)
+        export_file_name = utils.increment_file_name(base_name, existing_files)
+        
+        parser.save_data_as_ptrac(folder_path=export_folder_path, file_name=export_file_name) 
+
+
+    log.success(f'\n\nProcessed and created PTRAC files for {len(file_list)-len(failed_files)}/{len(file_list)} files in \'{acunetic360_data_folder_path}\'. New PTRAC file(s) can be found in \'{export_folder_path}\' folder.')
+    if len(failed_files) > 0:
+        failed_files_str = "\n".join(failed_files)
+        log.exception(f'Could not successfully process all files in the directory \'{acunetic360_data_folder_path}\'. Failed files:\n{failed_files_str}')
+    if settings.save_logs_to_file:
+        log.info(f'Additional logs were added to {log.LOGS_FILE_PATH}')

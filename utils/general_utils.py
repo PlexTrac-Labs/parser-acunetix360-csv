@@ -64,7 +64,7 @@ def try_parsing_date(possible_date_str: str) -> time.struct_time:
     :rtype: time.struct_time
     """
     error = None
-    accepted_data_formats = ['%m/%d/%Y', '%m-%d-%Y', '%m/%d/%y', '%m-%d-%y', '%Y/%m/%d', '%Y-%m-%d', '%m/%d/%Y %I:%M:%S %p']
+    accepted_data_formats = ['%m/%d/%Y', '%m-%d-%Y', '%m/%d/%y', '%m-%d-%y', '%Y/%m/%d', '%Y-%m-%d', '%m/%d/%Y %I:%M:%S %p', '%Y-%m-%d %I:%M %p']
     for fmt in accepted_data_formats:
         try:
             return time.strptime(possible_date_str, fmt)
@@ -221,7 +221,9 @@ def generate_flaw_id(title: str) -> int:
 
 def increment_file_name(file_name, existing_files):
     """
-    return the file name without extension
+    takes file name with extension
+    
+    return unique file name (possible appended number) without extension
     """
     base_name, extension = os.path.splitext(file_name)
     if base_name in existing_files:

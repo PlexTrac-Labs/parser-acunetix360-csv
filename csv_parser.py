@@ -28,7 +28,56 @@ class CSVParser():
 
     # otherwise should be None when the script will be supplied with a header file
     csv_headers_mapping_template = {
-
+        "Title": {
+            "header": "Title",
+            "mapping_key": "finding_title",
+            "col_index": None
+        },
+        "Severity": {
+            "header": "Severity",
+            "mapping_key": "finding_severity",
+            "col_index": None
+        },
+        "Website Group": {
+            "header": "Website Group",
+            "mapping_key": "finding_custom_field",
+            "col_index": None
+        },
+        "Website": {
+            "header": "Website",
+            "mapping_key": "finding_custom_field",
+            "col_index": None
+        },
+        "URL": {
+            "header": "URL",
+            "mapping_key": "asset_name",
+            "col_index": None
+        },
+        "First Seen": {
+            "header": "First Seen",
+            "mapping_key": "no_mapping",
+            "col_index": None
+        },
+        "Last Seen": {
+            "header": "Last Seen",
+            "mapping_key": "finding_created_at",
+            "col_index": None
+        },
+        "Tags": {
+            "header": "Tags",
+            "mapping_key": "finding_multi_tag",
+            "col_index": None
+        },
+        "Assignee": {
+            "header": "Assignee",
+            "mapping_key": "no_mapping",
+            "col_index": None
+        },
+        "Status": {
+            "header": "Status",
+            "mapping_key": "finding_status",
+            "col_index": None
+        }
     }
     
     # list of locations to store data in Plextrac and how to access that location
@@ -1690,7 +1739,7 @@ class CSVParser():
                             continue
                         log.success(f'Successfully added asset(s) info to finding!')
 
-    def save_data_as_ptrac(self, folder_path:str="exported-ptracs", file_name:str|None=None) -> None:
+    def save_data_as_ptrac(self, folder_path:str="exported_ptracs", file_name:str|None=None) -> None:
         """
         Creates and adds all relevant data to generate a ptrac file for each report found while parsing
 
