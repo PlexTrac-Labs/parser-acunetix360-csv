@@ -7,12 +7,10 @@ import csv
 import utils.log_handler as logger
 log = logger.log
 import settings
-from utils.auth_handler import Auth
 from csv_parser import CSVParser
 import utils.input_utils as input
 from utils.input_utils import LoadedCSVData, LoadedJSONData
 import utils.general_utils as utils
-import api
 
 
 # determines type of script execution
@@ -239,65 +237,6 @@ def load_data_into_parser(csv:List[list], parser:CSVParser) -> None:
     log.success(f'Loaded data into parser instance')
 
 
-def handle_add_report_template_name(report_template_name:str, parser:CSVParser) -> None:
-    """
-    Checks if the given the report_template_name value from the config.yaml file matches the name of an existing
-    Report Template in Plextrac. If the template exists in platform, adds this report template UUID to the template
-    for reports created with this script. The result being a Report Template is selected in the proper dropdown
-    in platform for all reports created.
-    """
-    report_templates = []
-
-    try:
-        response = api._templates.report_templates.list_report_templates(auth.base_url, auth.get_auth_headers(), auth.tenant_id)
-    except Exception as e:
-        log.exception(e)
-    if type(response.json) == list:
-        report_templates = list(filter(lambda x: x['data']['template_name'] == report_template_name, response.json))
-
-    if len(report_templates) > 1:
-        if not input.continue_anyways(f'report_template_name value \'{report_template_name}\' from config matches {len(report_templates)} Report Templates in platform. No Report Template will be added to reports.'):
-            exit()
-        return
-
-    if len(report_templates) == 1:
-        parser.report_template['template'] = report_templates[0]['data']['doc_id']
-        return
-    
-    if not input.continue_anyways(f'report_template_name value \'{report_template_name}\' from config does not match any Report Templates in platform. No Report Template will be added to reports.'):
-        exit()
-
-
-def handle_add_findings_template_name(findings_template_name:str, parser:CSVParser) -> None:
-    """
-    Checks if the given the findings_template_name value from the config.yaml file matches the name of an existing
-    Finding Layouts in Plextrac. If the layout exists in platform, adds this findings template UUID to the template
-    for reports created with this script. The result being a Finding Layout is selected in the proper dropdown
-    in platform for all reports created.
-    """
-    findings_templates = []
-
-    try:
-        response = api._templates.findings_templateslayouts.list_findings_templates(auth.base_url, auth.get_auth_headers())
-    except Exception as e:
-        log.exception(e)
-    if type(response.json) == list:
-        findings_templates = list(filter(lambda x: x['data']['template_name'] == findings_template_name, response.json))
-
-    if len(findings_templates) > 1:
-        if not input.continue_anyways(f'findings_template_name value \'{findings_template_name}\' from config matches {len(findings_templates)} Finding Layouts in platform. No Findings Layout will be added to reports.'):
-            exit()
-        return
-
-    if len(findings_templates) == 1:
-        parser.report_template['fields_template'] = findings_templates[0]['data']['doc_id']
-        return
-    
-    if not input.continue_anyways(f'findings_template_name value \'{findings_template_name}\' from config does not match any Finding Layouts in platform. No Finding Layout will be added to reports.'):
-        exit()
-
-
-
 if __name__ == '__main__':
     for i in settings.script_info:
         print(i)
@@ -310,9 +249,6 @@ if __name__ == '__main__':
         os.mkdir(export_folder_path)
     except FileExistsError as e:
         log.debug(f'Could not create directory {export_folder_path}, already exists')
-
-    auth = Auth(args)
-    auth.handle_authentication()
 
     # get API version from config
     api_version = ""
@@ -372,20 +308,6 @@ if __name__ == '__main__':
 
             # load temp CSV file data into parser
             load_data_into_parser(temp_csv, parser)
-
-        # handle report templates
-        report_template_name = ""
-        if args.get('report_template_name') != None and args.get('report_template_name') != "":
-            report_template_name = args.get('report_template_name')
-            log.info(f'Using report template \'{report_template_name}\' from config...')
-            handle_add_report_template_name(report_template_name, parser)
-
-        # handle finding layouts
-        findings_layout_name = ""
-        if args.get('findings_layout_name') != None and args.get('findings_layout_name') != "":
-            findings_layout_name = args.get('findings_layout_name')
-            log.info(f'Using findings layout \'{findings_layout_name}\' from config...')
-            handle_add_findings_template_name(findings_layout_name, parser)
 
         # parser data
         if not parser.parse_data():
