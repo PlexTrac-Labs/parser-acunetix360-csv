@@ -3,4 +3,3 @@ Pipfile.lock
 __pycache__/
 exported_ptracs/
 tests/
-files_to_process/
